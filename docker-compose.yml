@@ -1,0 +1,15 @@
+services:
+  openvpn-node:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      OPENVPN_NODE_ENVIRONMENT: docker
+      NODE_API_SECRET: ${NODE_API_SECRET:-change-me-node-secret}
+      MOCK_MODE: ${MOCK_MODE:-true}
+      SERVER_HOST: ${SERVER_HOST:-vpn.example.com}
+      SERVER_PORT: ${SERVER_PORT:-1194}
+      SERVER_PROTO: ${SERVER_PROTO:-udp}
+    ports:
+      - "${API_PORT:-8090}:8090"

@@ -1,0 +1,20 @@
+api:
+  debug: false
+  host: 0.0.0.0
+  port: 8090
+  title: OpenVPN Node
+  version: 0.1.0
+
+openvpn:
+  node_api_secret: change-me-node-secret
+  mock_mode: true
+  easy_rsa_path: /etc/openvpn/easy-rsa
+  ca_path: /etc/openvpn/easy-rsa/pki/ca.crt
+  ccd_dir: /etc/openvpn/ccd
+  pki_dir: /etc/openvpn/easy-rsa/pki
+  issued_dir: /etc/openvpn/easy-rsa/pki/issued
+  private_dir: /etc/openvpn/easy-rsa/pki/private
+  server_host: vpn.example.com
+  server_port: 1194
+  server_proto: udp
+  openvpn_service: openvpn-server@server
