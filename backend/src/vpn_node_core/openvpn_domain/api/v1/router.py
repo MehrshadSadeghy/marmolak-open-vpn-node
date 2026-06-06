@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, Request
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from vpn_node_core.openvpn_domain.api.v1.dependency import OpenVpnManagerDep
 from vpn_node_core.openvpn_domain.api.v1.dto import (
@@ -11,6 +13,7 @@ from vpn_node_core.openvpn_domain.api.v1.dto import (
 from vpn_node_core.openvpn_domain.auth.node_signature import verify_node_signature_factory
 
 router = APIRouter(prefix="/node", tags=["openvpn-node"])
+LOGGER = logging.getLogger(__name__)
 
 
 async def verify_signed_request(request: Request) -> None:
@@ -34,7 +37,17 @@ async def create_openvpn_user(
     body: CreateOpenVpnRequestDTO,
     service: OpenVpnManagerDep,
 ) -> CreateOpenVpnResponseDTO:
-    result = await service.create_user(body.to_command())
+    try:
+        result = await service.create_user(body.to_command())
+    except RuntimeError as exc:
+        LOGGER.exception("OpenVPN create failed for %s", body.common_name)
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "OpenVPN certificate creation failed. "
+                "Set MOCK_MODE=true for testing or configure EasyRSA on the host."
+            ),
+        ) from exc
     return CreateOpenVpnResponseDTO.from_result(result)
 
 
