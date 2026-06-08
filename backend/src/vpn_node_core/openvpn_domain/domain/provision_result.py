@@ -17,3 +17,5 @@ class HealthStatus(BaseModel):
     openvpn_running: bool
     mock_mode: bool
     active_clients: int
+    easyrsa_ready: bool = True
+    easyrsa_error: str | None = None

@@ -55,6 +55,7 @@ class OpenVpnManagerService:
         return DeleteResult(common_name=command.common_name, revoked=True)
 
     async def health(self) -> HealthStatus:
+        easyrsa_ready, easyrsa_error = self._easyrsa.check_pki_ready()
         running = True
         if not self._config.mock_mode:
             try:
@@ -67,10 +68,12 @@ class OpenVpnManagerService:
                 running = False
 
         return HealthStatus(
-            status="healthy" if running else "degraded",
+            status="healthy" if running and easyrsa_ready else "degraded",
             openvpn_running=running,
             mock_mode=self._config.mock_mode,
             active_clients=await self._easyrsa.active_client_count(),
+            easyrsa_ready=easyrsa_ready,
+            easyrsa_error=easyrsa_error,
         )
 
     async def _ensure_ccd(self, common_name: str) -> None:

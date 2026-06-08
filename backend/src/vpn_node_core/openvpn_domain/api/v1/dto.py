@@ -74,6 +74,8 @@ class HealthResponseDTO(BaseModel):
     openvpn_running: bool
     mock_mode: bool
     active_clients: int
+    easyrsa_ready: bool = True
+    easyrsa_error: str | None = None
     server_port: int | None = None
     server_proto: str | None = None
 
@@ -84,6 +86,8 @@ class HealthResponseDTO(BaseModel):
             openvpn_running=status.openvpn_running,
             mock_mode=status.mock_mode,
             active_clients=status.active_clients,
+            easyrsa_ready=status.easyrsa_ready,
+            easyrsa_error=status.easyrsa_error,
             server_port=server_port,
             server_proto=server_proto,
         )

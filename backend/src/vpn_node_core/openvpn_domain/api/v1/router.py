@@ -50,10 +50,16 @@ async def create_openvpn_user(
         LOGGER.exception("OpenVPN create failed for %s", body.common_name)
         raise HTTPException(
             status_code=503,
-            detail=(
+            detail=str(exc) or (
                 "OpenVPN certificate creation failed. "
                 "Set MOCK_MODE=true for testing or configure EasyRSA on the host."
             ),
+        ) from exc
+    except Exception as exc:
+        LOGGER.exception("OpenVPN create unexpected error for %s", body.common_name)
+        raise HTTPException(
+            status_code=503,
+            detail=f"OpenVPN certificate creation failed: {exc}",
         ) from exc
     return CreateOpenVpnResponseDTO.from_result(result)
 
