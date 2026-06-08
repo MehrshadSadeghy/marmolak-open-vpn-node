@@ -1,4 +1,9 @@
+from pathlib import Path
+
+import pytest
+
 from vpn_node_core.openvpn_domain.service.server_endpoint_service import (
+    resolve_server_conf_path,
     update_env_file_text,
     update_server_conf_text,
 )
@@ -25,6 +30,17 @@ proto tcp
     assert "proto udp" in updated
     assert "explicit-exit-notify 1" in updated
     assert "# explicit-exit-notify 1" not in updated
+
+
+def test_resolve_server_conf_path_uses_configured_file(tmp_path: Path):
+    conf = tmp_path / "server.conf"
+    conf.write_text("port 1194\n", encoding="utf-8")
+    assert resolve_server_conf_path(str(conf)) == conf
+
+
+def test_resolve_server_conf_path_raises_when_missing():
+    with pytest.raises(RuntimeError, match="OpenVPN server config not found"):
+        resolve_server_conf_path("/definitely/missing/server.conf")
 
 
 def test_update_env_file_text():

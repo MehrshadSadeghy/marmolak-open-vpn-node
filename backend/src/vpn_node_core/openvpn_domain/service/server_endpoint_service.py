@@ -9,6 +9,28 @@ from vpn_node_core.openvpn_domain.service.easyrsa_service import EasyRsaService
 
 LOGGER = logging.getLogger(__name__)
 
+_SERVER_CONF_FALLBACKS = (
+    "/host/etc/openvpn/server/server.conf",
+    "/etc/openvpn/server/server.conf",
+)
+
+
+def resolve_server_conf_path(configured_path: str) -> Path:
+    candidates = [configured_path, *_SERVER_CONF_FALLBACKS]
+    seen: set[str] = set()
+    for candidate in candidates:
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        path = Path(candidate)
+        if path.is_file():
+            return path
+    raise RuntimeError(
+        "OpenVPN server config not found. Tried: "
+        + ", ".join(seen)
+        + ". Mount the host filesystem (e.g. /:/host:rslave) or set OPENVPN_SERVER_CONF_PATH."
+    )
+
 
 def update_server_conf_text(content: str, port: int, proto: str) -> str:
     proto = proto.lower()
@@ -116,9 +138,7 @@ class ServerEndpointService:
                 previous_proto=previous_proto,
             )
 
-        conf_path = Path(self._config.server_conf_path)
-        if not conf_path.is_file():
-            raise RuntimeError(f"OpenVPN server config not found: {conf_path}")
+        conf_path = resolve_server_conf_path(self._config.server_conf_path)
 
         updated_conf = update_server_conf_text(conf_path.read_text(encoding="utf-8"), port, proto)
         conf_path.write_text(updated_conf, encoding="utf-8")

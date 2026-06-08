@@ -14,9 +14,10 @@ services:
       SERVER_PORT: ${SERVER_PORT:-1194}
       SERVER_PROTO: ${SERVER_PROTO:-udp}
       OPENVPN_DOTENV_PATHS: ${OPENVPN_DOTENV_PATHS:-/etc/openvpn/open-node.env}
-      OPENVPN_SERVER_CONF_PATH: /mnt/openvpn/server.conf
+      OPENVPN_SERVER_CONF_PATH: /host/etc/openvpn/server/server.conf
+      OPENVPN_ENDPOINT_STATE_PATH: /host/etc/openvpn/node-endpoint.json
     volumes:
-      - /etc/openvpn/server/server.conf:/mnt/openvpn/server.conf
+      - /:/host:rslave
       - /etc/openvpn/easy-rsa:/etc/openvpn/easy-rsa
       - /etc/openvpn/ccd:/etc/openvpn/ccd
       - ${OPENVPN_HOST_ENV_FILE:-./.env}:/etc/openvpn/open-node.env
