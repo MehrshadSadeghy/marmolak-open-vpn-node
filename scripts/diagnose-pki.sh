@@ -49,5 +49,23 @@ echo "Node health (if running locally):"
 curl -s http://127.0.0.1:8090/node/health 2>/dev/null || echo "  node API not reachable on :8090"
 
 echo
+echo "Inside openvpn-node container (if running):"
+if docker compose ps --status running 2>/dev/null | grep -q openvpn-node; then
+  docker compose exec -T openvpn-node ls -la /etc/openvpn/easy-rsa/pki/ 2>/dev/null || \
+    docker compose exec -T openvpn-node ls -la /etc/openvpn/easy-rsa/pki/
+  docker compose exec -T openvpn-node test -f /etc/openvpn/easy-rsa/pki/ca.crt && \
+    echo "[OK]   container sees ca.crt" || \
+    echo "[MISS] container does NOT see ca.crt (Docker volume mount problem)"
+else
+  echo "  openvpn-node container is not running in this directory"
+fi
+
+echo
+echo "docker-compose volumes:"
+docker compose config 2>/dev/null | awk '/volumes:/{flag=1;next}/^[[:space:]]*[a-zA-Z]/{if(flag) exit}flag' || true
+
+echo
 echo "Fix command:"
 echo "  sudo ./scripts/fix-easyrsa-host.sh"
+echo "  Ensure docker-compose.yml includes:"
+echo "    - /etc/openvpn/easy-rsa/pki:/etc/openvpn/easy-rsa/pki"
