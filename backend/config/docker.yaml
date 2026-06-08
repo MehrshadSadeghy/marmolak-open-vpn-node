@@ -18,3 +18,5 @@ openvpn:
   server_port: 1194
   server_proto: udp
   openvpn_service: openvpn-server@server
+  server_conf_path: /etc/openvpn/server/server.conf
+  endpoint_state_path: /etc/openvpn/node-endpoint.json

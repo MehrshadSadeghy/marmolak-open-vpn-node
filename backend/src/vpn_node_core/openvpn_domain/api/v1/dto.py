@@ -5,6 +5,7 @@ from vpn_node_core.openvpn_domain.domain.commands import (
     DeleteOpenVpnUserCommand,
     ServerRemoteConfig,
 )
+from vpn_node_core.openvpn_domain.domain.endpoint_result import ApplyEndpointResult
 from vpn_node_core.openvpn_domain.domain.provision_result import (
     DeleteResult,
     HealthStatus,
@@ -73,12 +74,46 @@ class HealthResponseDTO(BaseModel):
     openvpn_running: bool
     mock_mode: bool
     active_clients: int
+    server_port: int | None = None
+    server_proto: str | None = None
 
     @classmethod
-    def from_status(cls, status: HealthStatus) -> "HealthResponseDTO":
+    def from_status(cls, status: HealthStatus, *, server_port: int | None = None, server_proto: str | None = None) -> "HealthResponseDTO":
         return cls(
             status=status.status,
             openvpn_running=status.openvpn_running,
             mock_mode=status.mock_mode,
             active_clients=status.active_clients,
+            server_port=server_port,
+            server_proto=server_proto,
+        )
+
+
+class ApplyEndpointRequestDTO(BaseModel):
+    port: int = Field(ge=1, le=65535)
+    proto: str = Field(min_length=3, max_length=3)
+
+
+class ApplyEndpointResponseDTO(BaseModel):
+    status: str = "success"
+    port: int
+    proto: str
+    openvpn_running: bool
+    server_conf_updated: bool
+    firewall_rule_added: bool
+    env_file_updated: bool
+    previous_port: int | None = None
+    previous_proto: str | None = None
+
+    @classmethod
+    def from_result(cls, result: ApplyEndpointResult) -> "ApplyEndpointResponseDTO":
+        return cls(
+            port=result.port,
+            proto=result.proto,
+            openvpn_running=result.openvpn_running,
+            server_conf_updated=result.server_conf_updated,
+            firewall_rule_added=result.firewall_rule_added,
+            env_file_updated=result.env_file_updated,
+            previous_port=result.previous_port,
+            previous_proto=result.previous_proto,
         )

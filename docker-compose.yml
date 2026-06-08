@@ -4,6 +4,8 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
+    privileged: true
+    network_mode: host
     environment:
       OPENVPN_NODE_ENVIRONMENT: docker
       NODE_API_SECRET: ${NODE_API_SECRET:-change-me-node-secret}
@@ -11,5 +13,7 @@ services:
       SERVER_HOST: ${SERVER_HOST:-vpn.example.com}
       SERVER_PORT: ${SERVER_PORT:-1194}
       SERVER_PROTO: ${SERVER_PROTO:-udp}
-    ports:
-      - "${API_PORT:-8090}:8090"
+      OPENVPN_DOTENV_PATHS: ${OPENVPN_DOTENV_PATHS:-/etc/openvpn/open-node.env}
+    volumes:
+      - /etc/openvpn:/etc/openvpn
+      - ${OPENVPN_HOST_ENV_FILE:-./.env}:/etc/openvpn/open-node.env

@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 
@@ -27,6 +28,14 @@ class OpenVpnConfig(BaseModel):
     server_port: int = 1194
     server_proto: str = "udp"
     openvpn_service: str = "openvpn-server@server"
+    server_conf_path: str = "/etc/openvpn/server/server.conf"
+    endpoint_state_path: str = "/etc/openvpn/node-endpoint.json"
+    dotenv_paths: list[str] = Field(
+        default_factory=lambda: [
+            "/etc/openvpn/open-node.env",
+            "/host-env/.env",
+        ]
+    )
 
 
 class Config(BaseModel):
@@ -50,6 +59,26 @@ def _apply_env_overrides(data: dict) -> None:
         openvpn["server_port"] = int(port)
     if proto := os.getenv("SERVER_PROTO"):
         openvpn["server_proto"] = proto
+    if conf_path := os.getenv("OPENVPN_SERVER_CONF_PATH"):
+        openvpn["server_conf_path"] = conf_path
+    if state_path := os.getenv("OPENVPN_ENDPOINT_STATE_PATH"):
+        openvpn["endpoint_state_path"] = state_path
+    if dotenv_paths := os.getenv("OPENVPN_DOTENV_PATHS"):
+        openvpn["dotenv_paths"] = [item.strip() for item in dotenv_paths.split(",") if item.strip()]
+
+
+def _apply_endpoint_state_file(openvpn: dict) -> None:
+    state_path = Path(openvpn.get("endpoint_state_path", "/etc/openvpn/node-endpoint.json"))
+    if not state_path.is_file():
+        return
+    try:
+        data = json.loads(state_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return
+    if port := data.get("server_port"):
+        openvpn["server_port"] = int(port)
+    if proto := data.get("server_proto"):
+        openvpn["server_proto"] = str(proto).lower()
 
 
 def load_config(environment: str | None = None) -> Config:
@@ -63,4 +92,5 @@ def load_config(environment: str | None = None) -> Config:
         data = yaml.safe_load(f) or {}
 
     _apply_env_overrides(data)
+    _apply_endpoint_state_file(data.setdefault("openvpn", {}))
     return Config(**data)
