@@ -121,3 +121,14 @@ class ApplyEndpointResponseDTO(BaseModel):
             previous_port=result.previous_port,
             previous_proto=result.previous_proto,
         )
+
+
+class ClientTrafficDTO(BaseModel):
+    common_name: str
+    bytes_received: int
+    bytes_sent: int
+    bytes_total: int
+
+
+class ClientTrafficListResponseDTO(BaseModel):
+    clients: list[ClientTrafficDTO]

@@ -6,12 +6,15 @@ from vpn_node_core.openvpn_domain.api.v1.dependency import OpenVpnManagerDep, Se
 from vpn_node_core.openvpn_domain.api.v1.dto import (
     ApplyEndpointRequestDTO,
     ApplyEndpointResponseDTO,
+    ClientTrafficListResponseDTO,
+    ClientTrafficDTO,
     CreateOpenVpnRequestDTO,
     CreateOpenVpnResponseDTO,
     DeleteOpenVpnRequestDTO,
     DeleteOpenVpnResponseDTO,
     HealthResponseDTO,
 )
+from vpn_node_core.openvpn_domain.service.openvpn_status_service import read_client_traffic
 from vpn_node_core.openvpn_domain.auth.node_signature import verify_node_signature_factory
 
 router = APIRouter(prefix="/node", tags=["openvpn-node"])
@@ -97,3 +100,24 @@ async def delete_openvpn_user(
 ) -> DeleteOpenVpnResponseDTO:
     result = await service.delete_user(body.to_command())
     return DeleteOpenVpnResponseDTO.from_result(result)
+
+
+@router.get(
+    "/vpn/openvpn/traffic",
+    response_model=ClientTrafficListResponseDTO,
+    dependencies=[Depends(verify_signed_request)],
+)
+async def list_openvpn_traffic(request: Request) -> ClientTrafficListResponseDTO:
+    config = request.app.state.container.get_config().openvpn
+    readings = read_client_traffic(config.status_log_path)
+    return ClientTrafficListResponseDTO(
+        clients=[
+            ClientTrafficDTO(
+                common_name=item.common_name,
+                bytes_received=item.bytes_received,
+                bytes_sent=item.bytes_sent,
+                bytes_total=item.bytes_total,
+            )
+            for item in readings
+        ]
+    )

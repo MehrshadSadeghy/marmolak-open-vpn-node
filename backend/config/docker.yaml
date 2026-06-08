@@ -20,3 +20,4 @@ openvpn:
   openvpn_service: openvpn-server@server
   server_conf_path: /etc/openvpn/server/server.conf
   endpoint_state_path: /etc/openvpn/node-endpoint.json
+  status_log_path: /var/log/openvpn/openvpn-status.log

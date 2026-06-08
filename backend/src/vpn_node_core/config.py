@@ -31,6 +31,7 @@ class OpenVpnConfig(BaseModel):
     openvpn_service: str = "openvpn-server@server"
     server_conf_path: str = "/etc/openvpn/server/server.conf"
     endpoint_state_path: str = "/etc/openvpn/node-endpoint.json"
+    status_log_path: str = "/var/log/openvpn/openvpn-status.log"
     dotenv_paths: list[str] = Field(
         default_factory=lambda: [
             "/etc/openvpn/open-node.env",
@@ -68,6 +69,8 @@ def _apply_env_overrides(data: dict) -> None:
         openvpn["dotenv_paths"] = [item.strip() for item in dotenv_paths.split(",") if item.strip()]
     if easyrsa_bin := os.getenv("EASYRSA_BIN_PATH"):
         openvpn["easyrsa_bin_path"] = easyrsa_bin
+    if status_log := os.getenv("OPENVPN_STATUS_LOG_PATH"):
+        openvpn["status_log_path"] = status_log
 
 
 def _apply_endpoint_state_file(openvpn: dict) -> None:
