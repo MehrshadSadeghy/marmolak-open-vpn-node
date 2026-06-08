@@ -57,10 +57,24 @@ class EasyRsaService:
 
         ca_path = Path(self._config.ca_path)
         if not ca_path.is_file():
-            return False, (
-                f"CA certificate missing: {ca_path}. "
-                "Run scripts/setup-easyrsa-host.sh on the VPN server."
-            )
+            detail = f"CA certificate missing: {ca_path}."
+            if ca_path.exists():
+                detail += " Path exists but is not a readable file (check permissions / Docker userns)."
+            else:
+                parent = ca_path.parent
+                if parent.is_dir():
+                    try:
+                        entries = sorted(item.name for item in parent.iterdir())
+                        preview = ", ".join(entries[:8])
+                        if len(entries) > 8:
+                            preview += ", ..."
+                        detail += f" Mount dir {parent} is visible but ca.crt is absent (entries: {preview or 'empty'})."
+                    except OSError as exc:
+                        detail += f" Cannot list {parent}: {exc}."
+                else:
+                    detail += f" Mount dir {parent} is missing inside the container."
+                detail += " Run scripts/fix-docker-pki-mount.sh on the VPN server."
+            return False, detail
 
         issued_dir = Path(self._config.issued_dir)
         private_dir = Path(self._config.private_dir)

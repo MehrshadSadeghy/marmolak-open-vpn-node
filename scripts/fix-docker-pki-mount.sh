@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
-# Fix openvpn-node PKI bind mount when the container sees an empty /etc/openvpn/easy-rsa/pki.
+# Fix openvpn-node PKI visibility inside Docker.
+#
+# Docker on some hosts cannot read /etc/openvpn/easy-rsa/pki (userns, 0700 perms, mount quirks).
+# This copies the system PKI into ./host-pki and points docker-compose at it.
 #
 # Run from the openvpn-node project directory on the VPN server:
 #   sudo ./scripts/fix-docker-pki-mount.sh
-#
-# Common causes:
-#   - /etc/openvpn/easy-rsa/pki is a symlink (Docker mounts it as empty)
-#   - Docker previously created an empty mount point over the real PKI
 
 set -euo pipefail
 
-PKI_DIR="/etc/openvpn/easy-rsa/pki"
+SYSTEM_PKI="/etc/openvpn/easy-rsa/pki"
+LOCAL_PKI="host-pki"
 ENV_FILE=".env"
+PROJECT_DIR="$(pwd)"
 
 if [[ "${EUID}" -ne 0 ]]; then
   echo "Run as root: sudo $0" >&2
@@ -30,7 +31,7 @@ log() {
 find_real_pki() {
   local path
   for path in \
-    "$(readlink -f "${PKI_DIR}" 2>/dev/null || true)" \
+    "$(readlink -f "${SYSTEM_PKI}" 2>/dev/null || true)" \
     /etc/openvpn/easy-rsa/pki \
     /etc/openvpn/server/easy-rsa/pki \
     /etc/openvpn/server/pki; do
@@ -41,36 +42,6 @@ find_real_pki() {
   done
   find /etc/openvpn /root -path '*/pki/ca.crt' 2>/dev/null | head -1 | sed 's#/ca.crt##'
 }
-
-log "Stopping openvpn-node (unmounts PKI path on host)..."
-docker compose down
-
-real_pki="$(find_real_pki || true)"
-if [[ -z "${real_pki}" || ! -f "${real_pki}/ca.crt" ]]; then
-  echo "No PKI with ca.crt found. Run: sudo ./scripts/fix-easyrsa-host.sh" >&2
-  exit 1
-fi
-real_pki="$(readlink -f "${real_pki}")"
-log "Real PKI directory: ${real_pki}"
-
-if [[ -L "${PKI_DIR}" ]] || [[ "$(readlink -f "${PKI_DIR}" 2>/dev/null || echo "")" != "${real_pki}" ]]; then
-  log "Installing PKI at ${PKI_DIR} as a real directory..."
-  if [[ -e "${PKI_DIR}" || -L "${PKI_DIR}" ]]; then
-    backup="${PKI_DIR}.bak.$(date +%s)"
-    mv "${PKI_DIR}" "${backup}"
-    log "Backed up old path to ${backup}"
-  fi
-  mkdir -p "${PKI_DIR}"
-  cp -a "${real_pki}/." "${PKI_DIR}/"
-fi
-
-if [[ ! -f "${PKI_DIR}/ca.crt" ]]; then
-  echo "PKI still missing at ${PKI_DIR}/ca.crt" >&2
-  exit 1
-fi
-
-log "Host PKI contents:"
-ls -la "${PKI_DIR}/" | head -10
 
 set_env_var() {
   local key="$1"
@@ -86,26 +57,61 @@ set_env_var() {
   fi
 }
 
-set_env_var "OPENVPN_PKI_HOST_PATH" "${PKI_DIR}"
-set_env_var "OPENVPN_PKI_DIR" "/mnt/openvpn-pki"
-log "Updated ${ENV_FILE}: OPENVPN_PKI_HOST_PATH=${PKI_DIR}, OPENVPN_PKI_DIR=/mnt/openvpn-pki"
+log "Stopping openvpn-node..."
+docker compose down
 
-log "Starting openvpn-node..."
-docker compose up -d
+real_pki="$(find_real_pki || true)"
+if [[ -z "${real_pki}" || ! -f "${real_pki}/ca.crt" ]]; then
+  echo "No PKI with ca.crt found. Run: sudo ./scripts/fix-easyrsa-host.sh" >&2
+  exit 1
+fi
+real_pki="$(readlink -f "${real_pki}")"
+log "System PKI: ${real_pki}"
 
-sleep 2
-pki_in_container="/mnt/openvpn-pki"
-if grep -q '^OPENVPN_PKI_DIR=' "${ENV_FILE}" 2>/dev/null; then
-  pki_in_container="$(grep '^OPENVPN_PKI_DIR=' "${ENV_FILE}" | cut -d= -f2-)"
+log "Copying PKI into ${PROJECT_DIR}/${LOCAL_PKI} ..."
+rm -rf "${LOCAL_PKI}"
+mkdir -p "${LOCAL_PKI}"
+cp -a "${real_pki}/." "${LOCAL_PKI}/"
+
+chmod 755 "${LOCAL_PKI}"
+chmod 755 "${LOCAL_PKI}/issued" "${LOCAL_PKI}/reqs" 2>/dev/null || true
+chmod 777 "${LOCAL_PKI}/issued" "${LOCAL_PKI}/reqs" "${LOCAL_PKI}/private" 2>/dev/null || true
+chmod 644 "${LOCAL_PKI}/ca.crt" "${LOCAL_PKI}/dh.pem" 2>/dev/null || true
+chmod 600 "${LOCAL_PKI}/private/"* 2>/dev/null || true
+
+if [[ ! -f "${LOCAL_PKI}/ca.crt" ]]; then
+  echo "Copy failed: ${LOCAL_PKI}/ca.crt missing" >&2
+  exit 1
 fi
 
-if docker compose exec -T openvpn-node test -f "${pki_in_container}/ca.crt"; then
+log "Local PKI ready:"
+ls -la "${LOCAL_PKI}/" | head -10
+
+# Use absolute path so Docker never mis-resolves a relative mount source.
+local_pki_abs="${PROJECT_DIR}/${LOCAL_PKI}"
+set_env_var "OPENVPN_PKI_HOST_PATH" "${local_pki_abs}"
+set_env_var "OPENVPN_PKI_DIR" "/mnt/openvpn-pki"
+log "Updated ${ENV_FILE}:"
+log "  OPENVPN_PKI_HOST_PATH=${local_pki_abs}"
+log "  OPENVPN_PKI_DIR=/mnt/openvpn-pki"
+
+log "Starting openvpn-node..."
+docker compose up -d --build
+
+sleep 3
+if docker compose exec -T openvpn-node test -f /mnt/openvpn-pki/ca.crt; then
   echo
-  echo "SUCCESS: container sees ${pki_in_container}/ca.crt"
+  echo "SUCCESS: container sees /mnt/openvpn-pki/ca.crt"
   curl -s http://127.0.0.1:8090/node/health || true
   echo
+  echo
+  echo "New client certs are written to ${local_pki_abs}"
+  echo "Keep this directory backed up (contains CA private key)."
 else
   echo
-  echo "Container still missing ca.crt at ${pki_in_container}. Run: sudo ./scripts/diagnose-pki.sh" >&2
+  echo "FAILED: container still cannot read /mnt/openvpn-pki/ca.crt"
+  echo "Run:"
+  echo "  docker compose config | grep -A3 openvpn-pki"
+  echo "  docker compose exec openvpn-node ls -la /mnt/openvpn-pki/"
   exit 1
 fi

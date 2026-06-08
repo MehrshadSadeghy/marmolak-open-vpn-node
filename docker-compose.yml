@@ -5,6 +5,8 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     privileged: true
+    userns_mode: host
+    user: "0:0"
     network_mode: host
     environment:
       OPENVPN_NODE_ENVIRONMENT: docker
@@ -20,8 +22,12 @@ services:
     volumes:
       # On host first: sudo mount --bind /etc/openvpn/server/server.conf ./server.conf
       - ./server.conf:/mnt/openvpn/server.conf
-      # Mount PKI at /mnt/openvpn-pki (nested /etc/openvpn/easy-rsa/pki mounts often appear empty)
-      - ${OPENVPN_PKI_HOST_PATH:-/etc/openvpn/easy-rsa/pki}:/mnt/openvpn-pki
+      # Mount PKI at /mnt/openvpn-pki (avoid nested /etc/openvpn paths in the image)
+      - type: bind
+        source: ${OPENVPN_PKI_HOST_PATH:-./host-pki}
+        target: /mnt/openvpn-pki
+        bind:
+          propagation: rshared
       - /etc/openvpn/ccd:/etc/openvpn/ccd
       - /var/log/openvpn/openvpn-status.log:/var/log/openvpn/openvpn-status.log:ro
       - ${OPENVPN_HOST_ENV_FILE:-./.env}:/etc/openvpn/open-node.env

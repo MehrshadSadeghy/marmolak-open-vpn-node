@@ -75,9 +75,11 @@ if docker compose ps --status running 2>/dev/null | grep -q openvpn-node; then
   fi
   docker compose exec -T openvpn-node ls -la "${container_pki}/" 2>/dev/null || \
     docker compose exec -T openvpn-node ls -la "${container_pki}/"
+  docker compose exec -T openvpn-node id
   docker compose exec -T openvpn-node test -f "${container_pki}/ca.crt" && \
     echo "[OK]   container sees ${container_pki}/ca.crt" || \
     echo "[MISS] container does NOT see ${container_pki}/ca.crt (Docker volume mount problem)"
+  docker compose exec -T openvpn-node sh -c "stat '${container_pki}' 2>&1 || true; stat '${container_pki}/ca.crt' 2>&1 || true"
 else
   echo "  openvpn-node container is not running in this directory"
 fi
