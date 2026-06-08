@@ -23,11 +23,7 @@ services:
       # On host first: sudo mount --bind /etc/openvpn/server/server.conf ./server.conf
       - ./server.conf:/mnt/openvpn/server.conf
       # Mount PKI at /mnt/openvpn-pki (avoid nested /etc/openvpn paths in the image)
-      - type: bind
-        source: ${OPENVPN_PKI_HOST_PATH:-./host-pki}
-        target: /mnt/openvpn-pki
-        bind:
-          propagation: rshared
+      - ${OPENVPN_PKI_HOST_PATH:-./host-pki}:/mnt/openvpn-pki
       - /etc/openvpn/ccd:/etc/openvpn/ccd
       - /var/log/openvpn/openvpn-status.log:/var/log/openvpn/openvpn-status.log:ro
       - ${OPENVPN_HOST_ENV_FILE:-./.env}:/etc/openvpn/open-node.env
