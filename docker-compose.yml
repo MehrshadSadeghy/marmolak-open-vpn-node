@@ -19,6 +19,6 @@ services:
     volumes:
       # On host first: sudo mount --bind /etc/openvpn/server/server.conf ./server.conf
       - ./server.conf:/mnt/openvpn/server.conf
-      - /etc/openvpn/easy-rsa:/etc/openvpn/easy-rsa
+      - /etc/openvpn/easy-rsa/pki:/etc/openvpn/easy-rsa/pki
       - /etc/openvpn/ccd:/etc/openvpn/ccd
       - ${OPENVPN_HOST_ENV_FILE:-./.env}:/etc/openvpn/open-node.env

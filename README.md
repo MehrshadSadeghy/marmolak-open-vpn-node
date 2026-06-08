@@ -59,10 +59,18 @@ Then provision via `POST /api/v1/openvpn/provision`.
 
 Set `MOCK_MODE=false` and mount host paths:
 
-- `/etc/openvpn/easy-rsa`
+- `/etc/openvpn/easy-rsa/pki` (PKI / certificates)
 - `/etc/openvpn/ccd`
 
-The service runs EasyRSA and reloads OpenVPN via `systemctl`.
+The container ships with the EasyRSA binary (`easy-rsa` package). Only the PKI directory must exist on the host.
+
+If PKI is missing, run on the VPN server:
+
+```bash
+sudo ./scripts/setup-easyrsa-host.sh
+```
+
+The service runs EasyRSA against the mounted PKI and reloads OpenVPN via `systemctl`.
 
 ## Tests
 

@@ -12,6 +12,11 @@ from vpn_node_core.openvpn_domain.domain.client_certificate import ClientCertifi
 
 LOGGER = logging.getLogger(__name__)
 
+BUNDLED_EASYRSA_CANDIDATES = (
+    "/usr/share/easy-rsa/easyrsa",
+    "/usr/share/easy-rsa/easyrsa3/easyrsa",
+)
+
 
 class EasyRsaService:
     """Manages EasyRSA PKI on the VPN server host."""
@@ -21,22 +26,42 @@ class EasyRsaService:
         self._mock_store: dict[str, ClientCertificate] = {}
         self._revoked: set[str] = set()
 
+    def _resolve_easyrsa_bin(self) -> Path | None:
+        if self._config.easyrsa_bin_path:
+            configured = Path(self._config.easyrsa_bin_path)
+            if configured.is_file():
+                return configured
+
+        mounted = Path(self._config.easy_rsa_path) / "easyrsa"
+        if mounted.is_file():
+            return mounted
+
+        for candidate in BUNDLED_EASYRSA_CANDIDATES:
+            path = Path(candidate)
+            if path.is_file():
+                return path
+        return None
+
     def check_pki_ready(self) -> tuple[bool, str | None]:
         if self._config.mock_mode:
             return True, None
 
-        easy_rsa = Path(self._config.easy_rsa_path)
-        easyrsa_bin = easy_rsa / "easyrsa"
-        ca_path = Path(self._config.ca_path)
-
-        if not easy_rsa.is_dir():
-            return False, f"EasyRSA directory missing: {easy_rsa}"
-        if not easyrsa_bin.is_file():
-            return False, f"EasyRSA script missing: {easyrsa_bin}"
+        easyrsa_bin = self._resolve_easyrsa_bin()
+        if easyrsa_bin is None:
+            return False, (
+                f"EasyRSA script missing under {self._config.easy_rsa_path} "
+                f"and bundled paths ({', '.join(BUNDLED_EASYRSA_CANDIDATES)})"
+            )
         if shutil.which("openssl") is None:
             return False, "openssl binary not found in container PATH"
+
+        ca_path = Path(self._config.ca_path)
         if not ca_path.is_file():
-            return False, f"CA certificate missing: {ca_path} (run EasyRSA init-pki / build-ca on host)"
+            return False, (
+                f"CA certificate missing: {ca_path}. "
+                "Run scripts/setup-easyrsa-host.sh on the VPN server."
+            )
+
         issued_dir = Path(self._config.issued_dir)
         private_dir = Path(self._config.private_dir)
         if not issued_dir.is_dir():
@@ -112,21 +137,29 @@ class EasyRsaService:
         )
 
     async def _run_easyrsa(self, args: list[str]) -> str:
-        easyrsa = Path(self._config.easy_rsa_path) / "easyrsa"
-        if easyrsa.is_file():
-            command = ["bash", str(easyrsa), *args]
-            cwd = str(self._config.easy_rsa_path)
-        else:
-            command = ["./easyrsa", *args]
-            cwd = self._config.easy_rsa_path
-        return await self._run_command(command, cwd=cwd)
+        easyrsa = self._resolve_easyrsa_bin()
+        if easyrsa is None:
+            raise RuntimeError("EasyRSA binary is not available")
 
-    async def _run_command(self, command: list[str], cwd: str | None = None) -> str:
+        pki_dir = self._config.pki_dir
+        command = ["bash", str(easyrsa), f"--pki={pki_dir}", *args]
+        cwd = str(easyrsa.parent)
+        env = os.environ.copy()
+        env.setdefault("EASYRSA_PKI", pki_dir)
+        return await self._run_command(command, cwd=cwd, env=env)
+
+    async def _run_command(
+        self,
+        command: list[str],
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
+    ) -> str:
         def _execute() -> subprocess.CompletedProcess[str]:
             try:
                 return subprocess.run(
                     command,
                     cwd=cwd,
+                    env=env,
                     capture_output=True,
                     text=True,
                     check=False,

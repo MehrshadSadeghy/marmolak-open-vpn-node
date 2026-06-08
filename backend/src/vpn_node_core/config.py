@@ -19,6 +19,7 @@ class OpenVpnConfig(BaseModel):
     node_api_secret: str = "change-me-node-secret"
     mock_mode: bool = True
     easy_rsa_path: str = "/etc/openvpn/easy-rsa"
+    easyrsa_bin_path: str | None = None
     ca_path: str = "/etc/openvpn/easy-rsa/pki/ca.crt"
     ccd_dir: str = "/etc/openvpn/ccd"
     pki_dir: str = "/etc/openvpn/easy-rsa/pki"
@@ -65,6 +66,8 @@ def _apply_env_overrides(data: dict) -> None:
         openvpn["endpoint_state_path"] = state_path
     if dotenv_paths := os.getenv("OPENVPN_DOTENV_PATHS"):
         openvpn["dotenv_paths"] = [item.strip() for item in dotenv_paths.split(",") if item.strip()]
+    if easyrsa_bin := os.getenv("EASYRSA_BIN_PATH"):
+        openvpn["easyrsa_bin_path"] = easyrsa_bin
 
 
 def _apply_endpoint_state_file(openvpn: dict) -> None:
