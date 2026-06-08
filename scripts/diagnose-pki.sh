@@ -69,11 +69,15 @@ curl -s http://127.0.0.1:8090/node/health 2>/dev/null || echo "  node API not re
 echo
 echo "Inside openvpn-node container (if running):"
 if docker compose ps --status running 2>/dev/null | grep -q openvpn-node; then
-  docker compose exec -T openvpn-node ls -la /etc/openvpn/easy-rsa/pki/ 2>/dev/null || \
-    docker compose exec -T openvpn-node ls -la /etc/openvpn/easy-rsa/pki/
-  docker compose exec -T openvpn-node test -f /etc/openvpn/easy-rsa/pki/ca.crt && \
-    echo "[OK]   container sees ca.crt" || \
-    echo "[MISS] container does NOT see ca.crt (Docker volume mount problem)"
+  container_pki="/mnt/openvpn-pki"
+  if [[ -f .env ]] && grep -q '^OPENVPN_PKI_DIR=' .env; then
+    container_pki="$(grep '^OPENVPN_PKI_DIR=' .env | cut -d= -f2-)"
+  fi
+  docker compose exec -T openvpn-node ls -la "${container_pki}/" 2>/dev/null || \
+    docker compose exec -T openvpn-node ls -la "${container_pki}/"
+  docker compose exec -T openvpn-node test -f "${container_pki}/ca.crt" && \
+    echo "[OK]   container sees ${container_pki}/ca.crt" || \
+    echo "[MISS] container does NOT see ${container_pki}/ca.crt (Docker volume mount problem)"
 else
   echo "  openvpn-node container is not running in this directory"
 fi

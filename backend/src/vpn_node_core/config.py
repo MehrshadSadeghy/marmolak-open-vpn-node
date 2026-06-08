@@ -71,6 +71,12 @@ def _apply_env_overrides(data: dict) -> None:
         openvpn["easyrsa_bin_path"] = easyrsa_bin
     if status_log := os.getenv("OPENVPN_STATUS_LOG_PATH"):
         openvpn["status_log_path"] = status_log
+    if pki_dir := os.getenv("OPENVPN_PKI_DIR"):
+        pki_dir = pki_dir.rstrip("/")
+        openvpn["pki_dir"] = pki_dir
+        openvpn["ca_path"] = f"{pki_dir}/ca.crt"
+        openvpn["issued_dir"] = f"{pki_dir}/issued"
+        openvpn["private_dir"] = f"{pki_dir}/private"
 
 
 def _apply_endpoint_state_file(openvpn: dict) -> None:

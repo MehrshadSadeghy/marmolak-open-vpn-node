@@ -72,28 +72,40 @@ fi
 log "Host PKI contents:"
 ls -la "${PKI_DIR}/" | head -10
 
-if [[ -f "${ENV_FILE}" ]]; then
-  if grep -q '^OPENVPN_PKI_HOST_PATH=' "${ENV_FILE}"; then
-    sed -i "s|^OPENVPN_PKI_HOST_PATH=.*|OPENVPN_PKI_HOST_PATH=${PKI_DIR}|" "${ENV_FILE}"
+set_env_var() {
+  local key="$1"
+  local value="$2"
+  if [[ -f "${ENV_FILE}" ]]; then
+    if grep -q "^${key}=" "${ENV_FILE}"; then
+      sed -i "s|^${key}=.*|${key}=${value}|" "${ENV_FILE}"
+    else
+      echo "${key}=${value}" >> "${ENV_FILE}"
+    fi
   else
-    echo "OPENVPN_PKI_HOST_PATH=${PKI_DIR}" >> "${ENV_FILE}"
+    echo "${key}=${value}" > "${ENV_FILE}"
   fi
-else
-  echo "OPENVPN_PKI_HOST_PATH=${PKI_DIR}" > "${ENV_FILE}"
-fi
-log "Updated ${ENV_FILE}: OPENVPN_PKI_HOST_PATH=${PKI_DIR}"
+}
+
+set_env_var "OPENVPN_PKI_HOST_PATH" "${PKI_DIR}"
+set_env_var "OPENVPN_PKI_DIR" "/mnt/openvpn-pki"
+log "Updated ${ENV_FILE}: OPENVPN_PKI_HOST_PATH=${PKI_DIR}, OPENVPN_PKI_DIR=/mnt/openvpn-pki"
 
 log "Starting openvpn-node..."
 docker compose up -d
 
 sleep 2
-if docker compose exec -T openvpn-node test -f /etc/openvpn/easy-rsa/pki/ca.crt; then
+pki_in_container="/mnt/openvpn-pki"
+if grep -q '^OPENVPN_PKI_DIR=' "${ENV_FILE}" 2>/dev/null; then
+  pki_in_container="$(grep '^OPENVPN_PKI_DIR=' "${ENV_FILE}" | cut -d= -f2-)"
+fi
+
+if docker compose exec -T openvpn-node test -f "${pki_in_container}/ca.crt"; then
   echo
-  echo "SUCCESS: container sees ca.crt"
+  echo "SUCCESS: container sees ${pki_in_container}/ca.crt"
   curl -s http://127.0.0.1:8090/node/health || true
   echo
 else
   echo
-  echo "Container still missing ca.crt. Run: sudo ./scripts/diagnose-pki.sh" >&2
+  echo "Container still missing ca.crt at ${pki_in_container}. Run: sudo ./scripts/diagnose-pki.sh" >&2
   exit 1
 fi
