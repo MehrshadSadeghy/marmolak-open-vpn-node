@@ -89,16 +89,23 @@ if [[ ! -f "${EASYRSA_DIR}/easyrsa" ]]; then
 fi
 
 if existing_pki="$(find_existing_pki_dir)"; then
+  existing_pki="$(readlink -f "${existing_pki}")"
   log "Found existing PKI at ${existing_pki}"
-  if [[ "${existing_pki}" != "${PKI_DIR}" ]]; then
+  if [[ "${existing_pki}" != "$(readlink -f "${PKI_DIR}" 2>/dev/null || echo "")" ]]; then
     mkdir -p "$(dirname "${PKI_DIR}")"
-    if [[ -e "${PKI_DIR}" && ! -L "${PKI_DIR}" ]]; then
+    if mountpoint -q "${PKI_DIR}" 2>/dev/null; then
+      echo "Stop openvpn-node first: docker compose down (in project dir)" >&2
+      echo "${PKI_DIR} is a Docker mount point." >&2
+      exit 1
+    fi
+    if [[ -e "${PKI_DIR}" || -L "${PKI_DIR}" ]]; then
       backup="${PKI_DIR}.bak.$(date +%s)"
-      log "Backing up empty/incomplete PKI dir to ${backup}"
+      log "Backing up ${PKI_DIR} to ${backup}"
       mv "${PKI_DIR}" "${backup}"
     fi
-    ln -sfn "${existing_pki}" "${PKI_DIR}"
-    log "Linked ${PKI_DIR} -> ${existing_pki}"
+    log "Copying PKI into ${PKI_DIR} (real directory, not symlink — Docker-safe)..."
+    mkdir -p "${PKI_DIR}"
+    cp -a "${existing_pki}/." "${PKI_DIR}/"
   fi
 else
   log "No existing PKI found. Creating a new one at ${PKI_DIR}..."

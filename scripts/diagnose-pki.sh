@@ -23,6 +23,15 @@ check_path() {
 check_path "easyrsa script" "${EASYRSA_DIR}/easyrsa"
 check_path "bundled easyrsa" "/usr/share/easy-rsa/easyrsa"
 check_path "PKI directory" "${PKI_DIR}"
+if [[ -L "${PKI_DIR}" ]]; then
+  echo "[WARN] PKI path is a symlink -> $(readlink -f "${PKI_DIR}")"
+  echo "       Docker bind mounts often see an EMPTY dir when the source is a symlink."
+  echo "       Set OPENVPN_PKI_HOST_PATH to the resolved path in .env"
+fi
+if mountpoint -q "${PKI_DIR}" 2>/dev/null; then
+  echo "[WARN] PKI path is an active mount point (often Docker). Host ls may differ from disk."
+  findmnt -T "${PKI_DIR}" 2>/dev/null || true
+fi
 check_path "CA certificate" "${PKI_DIR}/ca.crt"
 check_path "CA private key" "${PKI_DIR}/private/ca.key"
 check_path "issued dir" "${PKI_DIR}/issued"
@@ -35,6 +44,15 @@ if [[ -f "${SERVER_CONF}" ]]; then
   echo "server.conf certificate paths:"
   awk '/^(ca|cert|key|dh) / {print "  " $0}' "${SERVER_CONF}" || true
 fi
+
+echo
+echo "PKI path type on host:"
+stat -c '  %F  %n' "${PKI_DIR}" 2>/dev/null || stat "${PKI_DIR}"
+echo "Resolved PKI path: $(readlink -f "${PKI_DIR}" 2>/dev/null || echo unknown)"
+echo "Host listing (no symlink follow):"
+ls -la "${EASYRSA_DIR}/" 2>/dev/null || true
+echo "Host PKI contents:"
+ls -la "${PKI_DIR}/" 2>/dev/null || true
 
 echo
 echo "Searching for ca.crt on host..."
@@ -65,7 +83,13 @@ echo "docker-compose volumes:"
 docker compose config 2>/dev/null | awk '/volumes:/{flag=1;next}/^[[:space:]]*[a-zA-Z]/{if(flag) exit}flag' || true
 
 echo
-echo "Fix command:"
+resolved_pki="$(readlink -f "${PKI_DIR}" 2>/dev/null || true)"
+if [[ -n "${resolved_pki}" && "${resolved_pki}" != "${PKI_DIR}" ]]; then
+  echo "Recommended .env (symlink-safe mount):"
+  echo "  OPENVPN_PKI_HOST_PATH=${resolved_pki}"
+fi
+
+echo
+echo "Fix commands:"
+echo "  sudo ./scripts/fix-docker-pki-mount.sh"
 echo "  sudo ./scripts/fix-easyrsa-host.sh"
-echo "  Ensure docker-compose.yml includes:"
-echo "    - /etc/openvpn/easy-rsa/pki:/etc/openvpn/easy-rsa/pki"
