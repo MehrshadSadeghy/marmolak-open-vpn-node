@@ -100,6 +100,7 @@ class EasyRsaService:
             raise RuntimeError(error or "EasyRSA PKI is not ready")
 
         await self._run_easyrsa(["--batch", "build-client-full", common_name, "nopass"])
+        await self._sync_system_pki()
         return await self._read_client_files(common_name)
 
     async def revoke_client(self, common_name: str) -> None:
@@ -113,12 +114,12 @@ class EasyRsaService:
             LOGGER.info("Certificate already absent: %s", common_name)
             return
 
-        await self._run_easyrsa(["--batch", "revoke", common_name, "yes"])
+        await self._run_easyrsa(["--batch", "revoke", common_name])
         await self._run_easyrsa(["gen-crl"])
         await self._run_command(
             ["cp", f"{self._config.pki_dir}/crl.pem", "/etc/openvpn/crl.pem"]
         )
-        await self._run_command(["systemctl", "reload", self._config.openvpn_service])
+        await self._run_command(["systemctl", "restart", self._config.openvpn_service])
 
     async def client_exists(self, common_name: str) -> bool:
         if self._config.mock_mode:
@@ -133,6 +134,15 @@ class EasyRsaService:
         if not Path(self._config.issued_dir).exists():
             return 0
         return len(list(Path(self._config.issued_dir).glob("*.crt")))
+
+    async def _sync_system_pki(self) -> None:
+        sync_script = Path("/usr/local/bin/sync-openvpn-pki")
+        if not sync_script.is_file():
+            return
+        try:
+            await self._run_command(["bash", str(sync_script)])
+        except RuntimeError as exc:
+            LOGGER.warning("System PKI sync failed: %s", exc)
 
     async def _read_client_files(self, common_name: str) -> ClientCertificate:
         try:
@@ -156,10 +166,12 @@ class EasyRsaService:
             raise RuntimeError("EasyRSA binary is not available")
 
         pki_dir = self._config.pki_dir
-        command = ["bash", str(easyrsa), f"--pki={pki_dir}", *args]
+        command = ["bash", str(easyrsa), *args]
         cwd = str(easyrsa.parent)
         env = os.environ.copy()
-        env.setdefault("EASYRSA_PKI", pki_dir)
+        env["EASYRSA_PKI"] = pki_dir
+        env.setdefault("EASYRSA_DN", "cn_only")
+        env.setdefault("EASYRSA_BATCH", "1")
         return await self._run_command(command, cwd=cwd, env=env)
 
     async def _run_command(

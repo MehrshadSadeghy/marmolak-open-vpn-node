@@ -15,45 +15,70 @@ class ClientTrafficReading:
         return self.bytes_received + self.bytes_sent
 
 
+def _append_reading(
+    readings: list[ClientTrafficReading],
+    *,
+    common_name: str,
+    bytes_received: int,
+    bytes_sent: int,
+) -> None:
+    if not common_name or common_name in {"Common Name", "UNDEF"}:
+        return
+    readings.append(
+        ClientTrafficReading(
+            common_name=common_name,
+            bytes_received=bytes_received,
+            bytes_sent=bytes_sent,
+        )
+    )
+
+
 def parse_openvpn_status_log(content: str) -> list[ClientTrafficReading]:
     readings: list[ClientTrafficReading] = []
-    in_client_list = False
+    in_legacy_client_list = False
 
     for raw_line in content.splitlines():
         line = raw_line.strip()
         if not line:
             continue
+
         if line.startswith("OpenVPN CLIENT LIST"):
-            in_client_list = True
+            in_legacy_client_list = True
             continue
-        if in_client_list and line.startswith("ROUTING TABLE"):
+        if in_legacy_client_list and line.startswith("ROUTING TABLE"):
             break
-        if not in_client_list:
+
+        parts = [part.strip() for part in line.split(",")]
+
+        # OpenVPN 2.6+ machine-readable status format.
+        if parts[0] == "CLIENT_LIST" and len(parts) >= 7:
+            try:
+                _append_reading(
+                    readings,
+                    common_name=parts[1],
+                    bytes_received=int(parts[5]),
+                    bytes_sent=int(parts[6]),
+                )
+            except ValueError:
+                pass
+            continue
+
+        if not in_legacy_client_list:
             continue
         if line.startswith("Updated,") or line.startswith("Common Name,"):
             continue
-
-        parts = [part.strip() for part in line.split(",")]
         if len(parts) < 4:
             continue
 
-        common_name = parts[0]
-        if not common_name or common_name in {"Common Name", "UNDEF"}:
-            continue
-
         try:
-            bytes_received = int(parts[2])
-            bytes_sent = int(parts[3])
+            _append_reading(
+                readings,
+                common_name=parts[0],
+                bytes_received=int(parts[2]),
+                bytes_sent=int(parts[3]),
+            )
         except ValueError:
             continue
-
-        readings.append(
-            ClientTrafficReading(
-                common_name=common_name,
-                bytes_received=bytes_received,
-                bytes_sent=bytes_sent,
-            )
-        )
 
     return readings
 

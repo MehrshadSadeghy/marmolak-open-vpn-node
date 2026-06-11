@@ -26,8 +26,9 @@ class OpenVpnConfig(BaseModel):
     issued_dir: str = "/etc/openvpn/easy-rsa/pki/issued"
     private_dir: str = "/etc/openvpn/easy-rsa/pki/private"
     server_host: str = "vpn.example.com"
-    server_port: int = 1194
+    server_port: int = 1433
     server_proto: str = "udp"
+    tls_crypt_path: str = "/etc/openvpn/easy-rsa/pki/ta.key"
     openvpn_service: str = "openvpn-server@server"
     server_conf_path: str = "/etc/openvpn/server/server.conf"
     endpoint_state_path: str = "/etc/openvpn/node-endpoint.json"

@@ -46,6 +46,7 @@ class OpenVpnManagerService:
             server_port=port,
             proto=proto,
             common_name=cn,
+            tls_crypt_key=self._read_tls_crypt_key(),
         )
         return ProvisionResult(ovpn_config=ovpn, common_name=cn, idempotent=idempotent)
 
@@ -75,6 +76,16 @@ class OpenVpnManagerService:
             easyrsa_ready=easyrsa_ready,
             easyrsa_error=easyrsa_error,
         )
+
+    def _read_tls_crypt_key(self) -> str | None:
+        path = Path(self._config.tls_crypt_path)
+        if not path.is_file():
+            return None
+        try:
+            return path.read_text(encoding="utf-8")
+        except OSError as exc:
+            LOGGER.warning("Failed to read tls-crypt key from %s: %s", path, exc)
+            return None
 
     async def _ensure_ccd(self, common_name: str) -> None:
         if self._config.mock_mode:

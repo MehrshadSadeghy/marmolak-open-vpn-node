@@ -47,8 +47,8 @@ if [[ -f "${CA_PATH}" ]]; then
   echo "PKI already initialized: ${CA_PATH}"
 else
   echo "Initializing EasyRSA PKI at ${PKI_DIR}"
-  bash "${EASYRSA_BIN}" --pki="${PKI_DIR}" init-pki
-  bash "${EASYRSA_BIN}" --pki="${PKI_DIR}" --batch build-ca nopass
+  EASYRSA_PKI="${PKI_DIR}" bash "${EASYRSA_BIN}" init-pki
+  EASYRSA_PKI="${PKI_DIR}" bash "${EASYRSA_BIN}" --batch build-ca nopass
   echo "CA created at ${CA_PATH}"
 fi
 

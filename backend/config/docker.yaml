@@ -15,8 +15,9 @@ openvpn:
   issued_dir: /etc/openvpn/easy-rsa/pki/issued
   private_dir: /etc/openvpn/easy-rsa/pki/private
   server_host: vpn.example.com
-  server_port: 1194
+  server_port: 1433
   server_proto: udp
+  tls_crypt_path: /mnt/openvpn-pki/ta.key
   openvpn_service: openvpn-server@server
   server_conf_path: /etc/openvpn/server/server.conf
   endpoint_state_path: /etc/openvpn/node-endpoint.json

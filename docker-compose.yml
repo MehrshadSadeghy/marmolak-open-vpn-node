@@ -13,15 +13,15 @@ services:
       NODE_API_SECRET: ${NODE_API_SECRET:-change-me-node-secret}
       MOCK_MODE: ${MOCK_MODE:-true}
       SERVER_HOST: ${SERVER_HOST:-vpn.example.com}
-      SERVER_PORT: ${SERVER_PORT:-1194}
+      SERVER_PORT: ${SERVER_PORT:-1433}
       SERVER_PROTO: ${SERVER_PROTO:-udp}
       OPENVPN_DOTENV_PATHS: ${OPENVPN_DOTENV_PATHS:-/etc/openvpn/open-node.env}
       OPENVPN_SERVER_CONF_PATH: /mnt/openvpn/server.conf
       OPENVPN_ENDPOINT_STATE_PATH: /mnt/openvpn/node-endpoint.json
       OPENVPN_PKI_DIR: ${OPENVPN_PKI_DIR:-/mnt/openvpn-pki}
     volumes:
-      # On host first: sudo mount --bind /etc/openvpn/server/server.conf ./server.conf
-      - ./server.conf:/mnt/openvpn/server.conf
+      # Host OpenVPN server config (copy from /etc/openvpn/server/server.conf)
+      - ./openvpn-server.conf:/mnt/openvpn/server.conf
       # Mount PKI at /mnt/openvpn-pki (avoid nested /etc/openvpn paths in the image)
       - ${OPENVPN_PKI_HOST_PATH:-./host-pki}:/mnt/openvpn-pki
       - /etc/openvpn/ccd:/etc/openvpn/ccd
