@@ -110,16 +110,47 @@ class EasyRsaService:
             return
 
         cert_path = Path(self._config.issued_dir) / f"{common_name}.crt"
-        if not cert_path.exists():
+        if cert_path.exists():
+            await self._run_easyrsa(["--batch", "revoke", common_name])
+            await self._run_easyrsa(["gen-crl"])
+        else:
             LOGGER.info("Certificate already absent: %s", common_name)
-            return
 
-        await self._run_easyrsa(["--batch", "revoke", common_name])
-        await self._run_easyrsa(["gen-crl"])
-        await self._run_command(
-            ["cp", f"{self._config.pki_dir}/crl.pem", "/etc/openvpn/crl.pem"]
+        await self._publish_crl_and_reload_openvpn()
+
+    async def _publish_crl_and_reload_openvpn(self) -> None:
+        crl_src = Path(self._config.pki_dir) / "crl.pem"
+        if crl_src.is_file():
+            legacy_crl = Path("/etc/openvpn/crl.pem")
+            try:
+                shutil.copy2(crl_src, legacy_crl)
+                legacy_crl.chmod(0o644)
+            except OSError as exc:
+                LOGGER.warning("Could not copy CRL to %s: %s", legacy_crl, exc)
+
+        reload_script = Path("/usr/local/bin/reload-openvpn")
+        if reload_script.is_file():
+            try:
+                await self._run_command(["bash", str(reload_script)])
+                return
+            except RuntimeError as exc:
+                LOGGER.warning("Host reload script failed: %s", exc)
+
+        for systemctl in ("/usr/bin/systemctl", "/bin/systemctl", "systemctl"):
+            if not Path(systemctl).exists() and systemctl == "systemctl" and shutil.which("systemctl") is None:
+                continue
+            try:
+                await self._run_command(
+                    [systemctl, "restart", self._config.openvpn_service]
+                )
+                return
+            except RuntimeError as exc:
+                LOGGER.warning("OpenVPN restart via %s failed: %s", systemctl, exc)
+
+        LOGGER.warning(
+            "OpenVPN was not restarted after CRL update; active sessions may stay connected "
+            "until the host service is restarted manually."
         )
-        await self._run_command(["systemctl", "restart", self._config.openvpn_service])
 
     async def client_exists(self, common_name: str) -> bool:
         if self._config.mock_mode:

@@ -26,4 +26,5 @@ services:
       - ${OPENVPN_PKI_HOST_PATH:-./host-pki}:/mnt/openvpn-pki
       - /etc/openvpn/ccd:/etc/openvpn/ccd
       - /var/log/openvpn/openvpn-status.log:/var/log/openvpn/openvpn-status.log:ro
+      - ./scripts/reload-openvpn-host.sh:/usr/local/bin/reload-openvpn:ro
       - ${OPENVPN_HOST_ENV_FILE:-./.env}:/etc/openvpn/open-node.env
